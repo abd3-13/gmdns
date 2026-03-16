@@ -17,12 +17,17 @@
 ## Installation
 
 ### Build for Linux
-git clone https://github.com/yourusername/gmdns.git
+```
+git clone https://github.com/abd3-13/gmdns.git
 cd gmdns
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o gmdns
-
+```
 ### Build for Android (ARM64)
+```
+git clone https://github.com/abd3-13/gmdns.git
+cd gmdns
 GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o gmdns
+```
 
 ## Usage
 
@@ -45,16 +50,16 @@ GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o gmdns
 ### Examples
 
 1. Run on all interfaces:
-./gmdns
+`./gmdns`
 
 2. Exclude mobile data interfaces:
-./gmdns -exclude-ifaces=rmnet_data
+`./gmdns -exclude-ifaces=rmnet_data`
 
 3. Only use Wi-Fi:
-./gmdns -include-ifaces=wlan0
+`./gmdns -include-ifaces=wlan0`
 
 4. Custom service name and port:
-./gmdns -name MyPhone -port 8080
+`./gmdns -name MyPhone -port 8080`
 
 ## Notes
 
