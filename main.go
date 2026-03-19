@@ -182,14 +182,26 @@ func main() {
 	log.Println("- Domain:", *domain)
 	log.Println("- Port:", *port)
 
+	// Signal handling
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+	var tc <-chan time.Time
+	if *waitTime > 0 {
+		tc = time.After(time.Second * time.Duration(*waitTime))
+	}
+	
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	
 	for {
 		select {
 		case <-sig:
-			log.Println("Shutting down.")
+			log.Println("Shutting down (signal)")
 			return
+		case <-tc:
+        	log.Println("Shutting down (timeout)")
+        	return
 	
 		case <-ticker.C:
 			if *ip != "" {
@@ -215,19 +227,5 @@ func main() {
 		}
 	}
 	
-	// Signal handling
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-
-	var tc <-chan time.Time
-	if *waitTime > 0 {
-		tc = time.After(time.Second * time.Duration(*waitTime))
-	}
-
-	select {
-	case <-sig:
-	case <-tc:
-	}
-
 	log.Println("Shutting down.")
 }
