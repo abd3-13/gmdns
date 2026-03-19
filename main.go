@@ -24,6 +24,38 @@ var (
 	excludeIfaces = flag.String("exclude-ifaces", "", "Comma-separated list of interface names to exclude")
 	includeIfaces = flag.String("include-ifaces", "", "Comma-separated list of interface names to include")
 )
+
+func ipsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	m := make(map[string]struct{}, len(a))
+	for _, ip := range a {
+		m[ip] = struct{}{}
+	}
+
+	for _, ip := range b {
+		if _, ok := m[ip]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func waitForIPs(include, exclude []string) []string {
+	for {
+		ips := getLocalIPv4s(include, exclude)
+		if len(ips) > 0 {
+			log.Println("Detected IPs:", ips)
+			return ips
+		}
+		log.Println("No IP found, waiting for network...")
+		time.Sleep(3 * time.Second)
+	}
+}
+
 // ifaceMatches checks if ifaceName starts with any prefix in list
 func ifaceMatches(ifaceName string, prefixes []string) bool {
 	for _, prefix := range prefixes {
@@ -110,30 +142,34 @@ func main() {
 		host = h
 	}
 
-	// Determine IPs
 	var ips []string
+	
 	if *ip != "" {
 		ips = []string{*ip}
 	} else {
-		ips = getLocalIPv4s(include, exclude)
-		if len(ips) == 0 {
-			log.Fatal("Could not detect any local IPv4 addresses")
+		ips = waitForIPs(include, exclude)
+	}
+	
+	startServer := func(ips []string) *zeroconf.Server {
+		log.Println("Starting mDNS with IPs:", ips)
+	
+		server, err := zeroconf.RegisterProxy(
+			*name,
+			*service,
+			*domain,
+			*port,
+			host,
+			ips,
+			[]string{"txtv=0", "lo=1", "la=2"},
+			nil,
+		)
+		if err != nil {
+			log.Fatal(err)
 		}
+		return server
 	}
-
-	server, err := zeroconf.RegisterProxy(
-		*name,
-		*service,
-		*domain,
-		*port,
-		host,
-		ips,
-		[]string{"txtv=0", "lo=1", "la=2"},
-		nil,
-	)
-	if err != nil {
-		panic(err)
-	}
+	
+	server := startServer(ips)
 	defer server.Shutdown()
 
 	log.Println("Published service:")
@@ -146,6 +182,39 @@ func main() {
 	log.Println("- Domain:", *domain)
 	log.Println("- Port:", *port)
 
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-sig:
+			log.Println("Shutting down.")
+			return
+	
+		case <-ticker.C:
+			if *ip != "" {
+				continue // static IP, skip monitoring
+			}
+	
+			newIPs := getLocalIPv4s(include, exclude)
+	
+			// If no IP → wait again (network dropped)
+			if len(newIPs) == 0 {
+				log.Println("Lost network, waiting...")
+				newIPs = waitForIPs(include, exclude)
+			}
+	
+			// If IP changed → restart mDNS
+			if !ipsEqual(ips, newIPs) {
+				log.Println("IP change detected:", newIPs)
+	
+				server.Shutdown()
+				server = startServer(newIPs)
+				ips = newIPs
+			}
+		}
+	}
+	
 	// Signal handling
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
