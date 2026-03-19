@@ -52,7 +52,7 @@ func waitForIPs(include, exclude []string) []string {
 			return ips
 		}
 		log.Println("No IP found, waiting for network...")
-		time.Sleep(3 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -182,7 +182,7 @@ func main() {
 	log.Println("- Domain:", *domain)
 	log.Println("- Port:", *port)
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 	
 	for {
